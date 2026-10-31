@@ -1,0 +1,16 @@
+{
+  "name": "insta-autodm",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Instagram comment -> follow check -> link DM, on Cloudflare Workers (free plan)",
+  "scripts": {
+    "test": "node test.mjs",
+    "deploy": "wrangler deploy",
+    "logs": "wrangler tail --format pretty"
+  },
+  "devDependencies": {
+    "wrangler": "^4.152.0"
+  },
+  "license": "MIT"
+}

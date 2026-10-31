@@ -1,0 +1,23 @@
+# Copy to wrangler.toml (gitignored) and fill in database_id. See docs/SETUP.md.
+name = "autodm"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+
+# Optional: serve on your own domain instead of <name>.<subdomain>.workers.dev
+# routes = [{ pattern = "autodm.example.com", custom_domain = true }]
+
+[vars]
+# Extra accounts, comma separated. NAME here needs a secret IG_ACCESS_TOKEN_NAME.
+AUTODM_EXTRA = ""
+
+# Secrets (scripts/push-secrets.sh): IG_ACCESS_TOKEN, IG_APP_SECRET, AUTODM_VERIFY_TOKEN, ADMIN_PASSWORD
+[[d1_databases]]
+binding = "DB"
+database_name = "autodm"
+database_id = "PASTE_DATABASE_ID_HERE"
+
+[observability]
+enabled = true
+
+[triggers]
+crons = ["* * * * *"] # scheduled / bulk sends

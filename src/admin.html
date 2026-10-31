@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Auto DM 매니저</title>
+<style>
+  :root {
+    --bg: #ffffff; --side: #f7f7f8; --line: #ececee; --text: #1b1b1f; --sub: #8a8a93;
+    --accent: #1b1b1f; --accent-soft: #f1f1f3; --ok: #1fa45a; --ok-soft: #e8f7ee; --chip: #f1f1f3; --dark: #1b1b1f;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Pretendard", "Apple SD Gothic Neo", sans-serif;
+         color: var(--text); background: var(--bg); font-size: 14px; }
+  button { font: inherit; cursor: pointer; }
+  .app { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+  aside { background: var(--side); border-right: 1px solid var(--line); padding: 20px 16px; display: flex; flex-direction: column; gap: 16px; }
+  .brand { font-weight: 800; letter-spacing: -.02em; font-size: 16px; }
+  .acct { display: flex; align-items: center; gap: 10px; width: 100%; padding: 12px; border: 1px solid transparent;
+          border-radius: 12px; background: transparent; text-align: left; }
+  .acct.on { background: #fff; border-color: var(--line); box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+  .acct b { display: block; font-size: 14px; }
+  .acct small { color: var(--sub); font-size: 12px; }
+  .avatar { width: 32px; height: 32px; border-radius: 50%; background: #ddd center/cover; flex: none; }
+  .primary { background: var(--accent); color: #fff; border: 0; border-radius: 999px; padding: 11px 16px; font-weight: 700; }
+  .primary:disabled { opacity: .5; cursor: default; }
+  main { padding: 20px 24px 60px; }
+  header { display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 800; margin-bottom: 24px; }
+  .col { max-width: 560px; margin: 0 auto; }
+  .card { border: 1px solid var(--line); border-radius: 18px; padding: 20px; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .stats small { color: var(--sub); font-size: 12px; }
+  .stats strong { display: block; font-size: 24px; margin: 4px 0 2px; }
+  .stats span { color: var(--sub); font-size: 12px; }
+  .limit { color: var(--sub); font-size: 12px; margin: 10px 4px 0; line-height: 1.5; }
+  .section-head { display: flex; align-items: center; gap: 8px; margin: 32px 0 16px; }
+  .section-head h2 { margin: 0; font-size: 18px; }
+  .section-head .count { color: var(--sub); font-weight: 600; font-size: 18px; }
+  .pill { font-size: 12px; padding: 3px 9px; border-radius: 999px; background: var(--ok-soft); color: var(--ok); font-weight: 600; }
+  .pill.off { background: var(--chip); color: var(--sub); }
+  .section-head .primary { margin-left: auto; border-radius: 10px; }
+  .post { display: flex; gap: 12px; align-items: center; margin-top: 18px; }
+  .thumb { width: 44px; height: 44px; border-radius: 10px; background: var(--chip) center/cover; flex: none;
+           display: grid; place-items: center; color: var(--sub); font-size: 18px; }
+  .post .cap { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .post small { color: var(--sub); }
+  .rules { margin-left: 21px; padding-left: 26px; border-left: 2px solid var(--line); }
+  .rule { display: flex; align-items: center; gap: 12px; padding: 14px 0; }
+  .rule .ico { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line); display: grid; place-items: center;
+               position: relative; flex: none; }
+  .rule .ico::after { content: ""; position: absolute; right: -1px; bottom: -1px; width: 9px; height: 9px; border-radius: 50%;
+                      background: var(--ok); border: 2px solid #fff; }
+  .rule.disabled .ico::after { background: #c4c4c9; }
+  .rule .body { flex: 1; min-width: 0; }
+  .chips { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; color: var(--sub); font-size: 12px; }
+  .chip { background: var(--chip); color: var(--text); border-radius: 6px; padding: 2px 7px; font-size: 12px; }
+  .rule .nums { color: var(--sub); font-size: 12px; margin-top: 4px; }
+  .rule .nums b { color: var(--text); }
+  .toggle { width: 40px; height: 24px; border-radius: 999px; background: #d4d4d8; border: 0; position: relative; flex: none; }
+  .toggle::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: left .15s; }
+  .toggle.on { background: var(--accent); }
+  .toggle.on::after { left: 19px; }
+  .more { background: none; border: 0; font-size: 18px; color: var(--sub); padding: 4px 6px; }
+  .add-row { display: flex; align-items: center; gap: 12px; padding: 8px 0 4px; background: none; border: 0; color: var(--text); font-weight: 600; }
+  .add-row span { width: 30px; height: 30px; border: 1px dashed #c4c4c9; border-radius: 50%; display: grid; place-items: center; color: var(--sub); }
+  .empty { text-align: center; color: var(--sub); padding: 40px 0; }
+  /* modal */
+  .backdrop { position: fixed; inset: 0; background: rgba(20,20,24,.45); display: none; align-items: center; justify-content: center; padding: 16px; z-index: 10; }
+  .backdrop.show { display: flex; }
+  .modal { background: #fff; border-radius: 20px; width: min(520px, 100%); max-height: 90vh; overflow: auto; padding: 24px; }
+  .modal h3 { margin: 0 0 18px; font-size: 18px; }
+  .field { margin-bottom: 18px; }
+  .field > label { display: block; font-weight: 700; margin-bottom: 8px; }
+  .field .hint { color: var(--sub); font-size: 12px; margin-top: 6px; }
+  .grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; max-height: 220px; overflow: auto; }
+  .grid button { aspect-ratio: 1; border-radius: 10px; border: 2px solid transparent; background: var(--chip) center/cover; padding: 0;
+                 font-size: 11px; color: var(--sub); }
+  .grid button.sel { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+  .kw { display: flex; flex-wrap: wrap; gap: 6px; border: 1px solid var(--line); border-radius: 12px; padding: 8px; }
+  .kw .chip { display: inline-flex; gap: 4px; align-items: center; font-size: 13px; }
+  .kw .chip button { border: 0; background: none; color: var(--sub); padding: 0; }
+  .kw input { border: 0; outline: 0; flex: 1; min-width: 120px; font: inherit; padding: 4px; }
+  .sub { color: var(--sub); font-size: 12px; font-weight: 600; margin: 12px 0 6px; }
+  .preview { border: 1px solid var(--line); border-radius: 14px; padding: 18px; background: var(--side); }
+  .bubble { margin-left: auto; max-width: 300px; background: #e9eaee; border-radius: 18px; padding: 12px; }
+  .bubble #pvText { white-space: pre-wrap; overflow-wrap: anywhere; padding: 2px 4px 4px; min-height: 20px; }
+  .bubble #pvText:empty::before { content: "메시지를 입력해 주세요"; color: var(--sub); }
+  .bubble .pvb { background: #fff; border-radius: 10px; padding: 9px; text-align: center; margin-top: 6px; font-weight: 600; font-size: 13px; }
+  .bubble .pvb.empty { color: var(--sub); font-weight: 400; }
+  .seg { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .seg button { border: 1px solid var(--line); background: #fff; border-radius: 10px; padding: 10px; color: var(--sub); font-weight: 600; }
+  .seg button.on { background: var(--dark); border-color: var(--dark); color: #fff; }
+  .btnrow { display: grid; grid-template-columns: 2fr 3fr; gap: 6px; margin-top: 6px; }
+  .btnrow input { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; font: inherit; min-width: 0; }
+  textarea { width: 100%; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; font: inherit; resize: vertical; min-height: 64px; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 14px; margin-bottom: 18px; }
+  .row small { display: block; color: var(--sub); font-size: 12px; margin-top: 2px; }
+  .modes { display: grid; gap: 8px; }
+  .modes button { position: relative; text-align: left; border: 1px solid var(--line); background: #fff; border-radius: 14px; padding: 12px 14px 12px 42px; }
+  .modes button::before { content: ""; position: absolute; left: 14px; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; border-radius: 50%; border: 2px solid #c4c4c9; }
+  .modes button.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .modes button.on::before { border-color: var(--accent); background: radial-gradient(var(--accent) 40%, #fff 45%); }
+  .modes button:disabled { opacity: .4; cursor: default; }
+  .modes b { display: block; }
+  .modes small { color: var(--sub); font-size: 12px; }
+  #mSendAt { width: 100%; margin-top: 8px; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; font: inherit; }
+  .actions { display: flex; gap: 8px; margin-top: 8px; }
+  .actions .primary { flex: 1; background: var(--dark); border-radius: 12px; padding: 13px; }
+  .ghost { background: var(--chip); border: 0; border-radius: 12px; padding: 13px 18px; font-weight: 600; }
+  .danger { background: none; border: 0; color: #e5484d; font-weight: 600; padding: 13px 10px; }
+  .menu { position: absolute; background: #fff; border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.1); padding: 6px; z-index: 5; }
+  .menu button { display: block; width: 100%; text-align: left; border: 0; background: none; padding: 9px 14px; border-radius: 8px; }
+  .menu button:hover { background: var(--side); }
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--dark); color: #fff; padding: 10px 16px; border-radius: 10px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  .toast.show { opacity: 1; }
+  @media (max-width: 720px) {
+    .app { grid-template-columns: 1fr; }
+    aside { border-right: 0; border-bottom: 1px solid var(--line); }
+    main { padding: 16px; }
+    .grid { grid-template-columns: repeat(4, 1fr); }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <div class="brand">AUTO DM</div>
+    <div id="accounts"></div>
+    <button class="primary" id="addBtnSide">+ 자동화 추가</button>
+  </aside>
+  <main>
+    <header><div class="avatar" id="hAvatar"></div><span id="hName">불러오는 중…</span></header>
+    <div class="col">
+      <div class="card stats" id="stats"></div>
+      <div class="limit">발송 한도: 계정당 <b>1분 12건, 1시간 720건</b>입니다. 인스타그램 한도(1시간 750건)보다 조금 적게 잡았습니다. 한도에 걸린 DM은 1분 뒤에 다시 보냅니다.</div>
+      <div class="section-head">
+        <h2>자동화</h2><span class="count" id="ruleCount"></span><span class="pill" id="statusPill"></span>
+        <button class="primary" id="addBtn">+ 자동화 추가</button>
+      </div>
+      <div id="list"></div>
+    </div>
+  </main>
+</div>
+
+<div class="backdrop" id="backdrop">
+  <div class="modal">
+    <h3 id="mTitle">자동화 추가</h3>
+    <div class="field">
+      <label>게시물</label>
+      <div class="grid" id="mGrid"></div>
+      <div class="hint" id="mPostHint"></div>
+    </div>
+    <div class="field">
+      <label>키워드</label>
+      <div class="kw" id="mKw"><input id="mKwInput" placeholder="입력 후 Enter"></div>
+      <div class="hint">키워드가 하나라도 들어간 댓글에 반응합니다. 비워 두면 모든 댓글에 반응합니다.</div>
+    </div>
+    <div class="field">
+      <label>언제 보낼까요?</label>
+      <div class="modes" id="mMode">
+        <button data-mode="instant"><b>즉시 발송</b><small>댓글이 달릴 때마다 바로</small></button>
+        <button data-mode="scheduled"><b>예약 발송</b><small>저장한 뒤 새로 달린 댓글에, 정한 시간에 한 번에</small></button>
+        <button data-mode="bulk"><b>일괄 발송</b><small>최근 7일 안에 달린 댓글에 지금 한 번에</small></button>
+      </div>
+      <input type="datetime-local" id="mSendAt">
+      <div class="hint" id="mModeHint"></div>
+    </div>
+    <div class="row">
+      <div><b>팔로워 구분</b><small>켜면 팔로우를 확인한 사람에게만 링크를 보냅니다.</small></div>
+      <button class="toggle" id="mFollow"></button>
+    </div>
+    <div class="field" id="mAskField">
+      <label>첫 DM (팔로우 확인 버튼과 함께)</label>
+      <textarea id="mAsk"></textarea>
+    </div>
+    <div class="field">
+      <label id="mLinkLabel">링크 DM</label>
+      <div class="preview"><div class="bubble"><div id="pvText"></div><div id="pvBtns"></div></div></div>
+      <div class="sub">메시지 입력</div>
+      <textarea id="mLink" maxlength="640" placeholder="예) 요청하신 자료를 공유해 드려요! 아래 링크 참고해 주세요 :>"></textarea>
+      <div class="sub">메시지 버튼</div>
+      <div class="seg" id="mBtnCount">
+        <button data-n="0">없음</button><button data-n="1">1개</button><button data-n="2">2개</button><button data-n="3">3개</button>
+      </div>
+      <div id="mBtns"></div>
+      <div class="hint">버튼 이름은 20자까지 쓸 수 있습니다. 링크는 https:// 로 시작해야 합니다.</div>
+    </div>
+    <div class="field" id="mFollowField">
+      <label>팔로우하지 않은 사람에게</label>
+      <textarea id="mFollowText"></textarea>
+    </div>
+    <div class="row">
+      <div><b>댓글에 답글 달기</b><small>DM을 보낸 뒤 댓글에도 공개 답글을 답니다.</small></div>
+      <button class="toggle" id="mReply"></button>
+    </div>
+    <div class="field" id="mReplyField">
+      <label>답글 문구</label>
+      <textarea id="mReplyTexts" rows="5"></textarea>
+      <div class="hint">한 줄에 하나씩 씁니다. 댓글마다 무작위로 하나를 골라 답글로 답니다. 같은 문구만 반복하지 않도록 여러 개를 넣어 두세요. (최대 30줄)</div>
+    </div>
+    <div class="actions">
+      <button class="danger" id="mDelete">삭제</button>
+      <button class="ghost" id="mCancel">취소</button>
+      <button class="primary" id="mSave">저장</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+const DEFAULTS = { ask_text: "아래 버튼을 눌러 팔로우 여부를 확인해주세요. 확인 후 요청하신 정보를 보내드립니다!", link_text: "안녕하세요!\n요청하신 정보를 공유해 드립니다! 아래 링크 참고해 주세요 :>", follow_text: "아직 팔로우가 확인되지 않았어요. 팔로우 후 다시 눌러주세요!",
+  comment_reply: false, reply_texts: ["감사합니다! DM 보내드렸어요 😊", "DM 확인해 주세요! 💌", "DM으로 보내드렸어요! 확인 부탁드려요 🙌",
+  "관심 가져주셔서 감사해요! DM 확인해 주세요 :)", "DM 보내드렸습니다! 좋은 하루 보내세요 ☺️"] };
+let state = { accounts: [], rules: {}, stats: {} }, acct = null, media = {}, editing = null;
+
+function toast(msg) { const t = $("toast"); t.textContent = msg; t.classList.add("show"); setTimeout(() => t.classList.remove("show"), 1800); }
+
+async function load() {
+  const r = await fetch("/api/state");
+  state = await r.json();
+  try { acct = localStorage.getItem("autodm.acct"); } catch (e) {}
+  if (!state.accounts.some(a => a.id === acct)) acct = state.accounts[0]?.id;
+  render();
+}
+
+const rules = () => state.rules[acct] || [];
+const statOf = id => Object.assign({ sent: 0, checks: 0, links: 0 }, state.stats[id]);
+
+async function save(next, msg) {
+  const r = await fetch("/api/rules", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ account: acct, rules: next }) });
+  if (!r.ok) return toast("저장하지 못했어요");
+  state.rules[acct] = (await r.json()).rules;
+  render(); toast(msg);
+}
+
+const real = mid => mid && mid !== "next";
+const fmt = iso => new Date(iso).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
+const modeLabel = r => r.send_mode === "scheduled" ? ` · 예약 ${esc(fmt(r.send_at))}` : r.send_mode === "bulk" ? ` · 일괄 발송 (${esc(fmt(r.armed_at))} 저장)` : "";
+const toLocal = iso => { const d = new Date(iso); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 16); };
+
+function render() {
+  $("accounts").innerHTML = state.accounts.map(a => `
+    <button class="acct ${a.id === acct ? "on" : ""}" data-id="${esc(a.id)}">
+      <div class="avatar" style="background-image:url('${esc(a.picture)}')"></div>
+      <div><b>@${esc(a.username)}</b><small>자동화 ${(state.rules[a.id] || []).length}개</small></div>
+    </button>`).join("");
+  const a = state.accounts.find(a => a.id === acct);
+  if (!a) { $("hName").textContent = "연결된 계정이 없어요"; return; }
+  $("hName").textContent = "@" + a.username;
+  $("hAvatar").style.backgroundImage = `url('${a.picture}')`;
+
+  const list = rules(), tot = list.reduce((s, r) => { const x = statOf(r.id); s.sent += x.sent; s.checks += x.checks; s.links += x.links; return s; }, { sent: 0, checks: 0, links: 0 });
+  $("stats").innerHTML = `
+    <div><small>보낸 DM</small><strong>${tot.sent}</strong><span>댓글에 답한 수</span></div>
+    <div><small>팔로우 확인</small><strong>${tot.checks}</strong><span>버튼 누른 수</span></div>
+    <div><small>링크 전송</small><strong>${tot.links}</strong><span>${tot.sent ? Math.round(tot.links / tot.sent * 100) : 0}% 전환</span></div>`;
+  const off = list.filter(r => !r.enabled).length;
+  $("ruleCount").textContent = list.length;
+  $("statusPill").textContent = !list.length ? "없음" : off ? `${off}개 꺼짐` : "● 모두 실행 중";
+  $("statusPill").className = "pill" + (!list.length || off ? " off" : "");
+
+  if (!list.length) { $("list").innerHTML = `<div class="empty">아직 자동화가 없어요.<br>오른쪽 위 버튼으로 첫 자동화를 만들어 보세요.</div>`; return; }
+  const groups = {};
+  list.forEach(r => (groups[r.media_id] ||= []).push(r));
+  $("list").innerHTML = Object.entries(groups).sort(([a], [b]) => (a === "") - (b === "")).map(([mid, rs]) => `
+    <div class="post">
+      <div class="thumb" style="${real(mid) && rs[0].media_thumb ? `background-image:url('${esc(rs[0].media_thumb)}')` : ""}">${mid === "next" ? "＋" : mid ? "" : "＊"}</div>
+      <div style="min-width:0"><div class="cap">${mid === "next" ? "다음에 올릴 게시물" : mid ? esc(rs[0].media_caption || "(캡션 없음)") : "모든 게시물"}</div>
+      <small>${mid === "next" ? "게시물을 올리면 자동으로 연결됩니다" : mid ? "게시물 지정" : "어느 게시물의 댓글이든 반응"}</small></div>
+    </div>
+    <div class="rules">
+      ${rs.map(r => { const s = statOf(r.id), kws = r.keywords || []; return `
+      <div class="rule ${r.enabled ? "" : "disabled"}">
+        <div class="ico">💬</div>
+        <div class="body">
+          <div class="chips">키워드 ${kws.length ? kws.slice(0, 3).map(k => `<span class="chip">${esc(k)}</span>`).join("") + (kws.length > 3 ? `<span class="chip">+${kws.length - 3}</span>` : "") : `<span class="chip">모든 댓글</span>`}
+            ${r.require_follow ? "&nbsp;팔로워 구분" : "&nbsp;바로 링크"}${r.comment_reply ? " · 답글" : ""}${modeLabel(r)}</div>
+          <div class="nums">전송 <b>${s.sent}</b> &nbsp; 확인 <b>${s.checks}</b> &nbsp; 링크 <b>${s.links}</b></div>
+        </div>
+        <button class="toggle ${r.enabled ? "on" : ""}" data-toggle="${esc(r.id)}" aria-label="켜기/끄기"></button>
+        <button class="more" data-more="${esc(r.id)}" aria-label="더보기">⋮</button>
+      </div>`; }).join("")}
+      <button class="add-row" data-add="${esc(mid)}"><span>+</span>이 ${mid ? "피드로" : "조건으로"} 자동화 추가</button>
+    </div>`).join("");
+}
+
+document.addEventListener("click", e => {
+  const t = e.target.closest("button"); document.querySelectorAll(".menu").forEach(m => m.remove());
+  if (!t) return;
+  if (t.classList.contains("acct")) { acct = t.dataset.id; try { localStorage.setItem("autodm.acct", acct); } catch (e) {} render(); }
+  else if (t.dataset.toggle) save(rules().map(r => r.id === t.dataset.toggle ? { ...r, enabled: !r.enabled } : r), "저장했어요");
+  else if (t.dataset.more) {
+    const m = document.createElement("div"); m.className = "menu";
+    m.innerHTML = `<button data-edit="${esc(t.dataset.more)}">수정</button><button data-dup="${esc(t.dataset.more)}">복제</button><button data-del="${esc(t.dataset.more)}" style="color:#e5484d">삭제</button>`;
+    const b = t.getBoundingClientRect(); m.style.top = (b.bottom + scrollY + 4) + "px"; m.style.left = (b.right + scrollX - 120) + "px";
+    document.body.appendChild(m);
+  }
+  else if (t.dataset.edit) openModal(rules().find(r => r.id === t.dataset.edit));
+  else if (t.dataset.dup) { const r = rules().find(r => r.id === t.dataset.dup); save([...rules(), { ...r, id: "" }], "복제했어요"); }
+  else if (t.dataset.del) { if (confirm("이 자동화를 삭제할까요?")) save(rules().filter(r => r.id !== t.dataset.del), "삭제했어요"); }
+  else if (t.dataset.add !== undefined) openModal(null, t.dataset.add);
+});
+$("addBtn").onclick = $("addBtnSide").onclick = () => openModal(null);
+
+// ---------- modal ----------
+let draft;
+async function openModal(rule, mediaId) {
+  editing = rule;
+  draft = rule ? { comment_reply: false, reply_texts: DEFAULTS.reply_texts, send_mode: "instant", ...structuredClone(rule) } : { ...DEFAULTS, enabled: true, require_follow: true, keywords: [], media_id: mediaId ?? "", media_caption: "", media_thumb: "", send_mode: "instant" };
+  $("mSendAt").value = draft.send_at ? toLocal(draft.send_at) : "";
+  $("mTitle").textContent = rule ? "자동화 수정" : "자동화 추가";
+  $("mDelete").style.display = rule ? "" : "none";
+  const fields = { ask_text: "mAsk", link_text: "mLink", follow_text: "mFollowText" };
+  Object.entries(fields).forEach(([k, id]) => $(id).value = draft[k] || "");
+  draft.link_buttons = (draft.link_buttons || []).map(b => ({ ...b }));
+  renderBtns();
+  $("mReplyTexts").value = (draft.reply_texts || []).join("\n");
+  renderKw(); renderFollow(); renderReply(); renderMode(); $("backdrop").classList.add("show");
+  $("mGrid").innerHTML = `<div class="hint">게시물을 불러오는 중…</div>`;
+  if (!media[acct]) {
+    const r = await fetch("/api/media?account=" + encodeURIComponent(acct));
+    media[acct] = r.ok ? await r.json() : [];
+  }
+  renderGrid();
+}
+const thumbOf = m => m.media_type === "VIDEO" ? m.thumbnail_url : m.media_url;
+function renderGrid() {
+  const list = media[acct] || [];
+  $("mGrid").innerHTML = `<button data-media="next" class="${draft.media_id === "next" ? "sel" : ""}">다음에<br>올릴<br>게시물</button>` +
+    list.map(m => `<button data-media="${esc(m.id)}" class="${draft.media_id === m.id ? "sel" : ""}" title="${esc((m.caption || "").slice(0, 80))}" style="background-image:url('${esc(thumbOf(m))}')"></button>`).join("");
+  const sel = list.find(m => m.id === draft.media_id);
+  $("mPostHint").textContent = draft.media_id === "next" ? "저장한 뒤 처음 올리는 게시물에 자동으로 연결됩니다."
+    : draft.media_id ? (sel?.caption || draft.media_caption || "").slice(0, 60) : "게시물을 선택해 주세요.";
+}
+$("mGrid").onclick = e => {
+  const b = e.target.closest("button[data-media]"); if (!b) return;
+  const m = (media[acct] || []).find(m => m.id === b.dataset.media);
+  Object.assign(draft, { media_id: b.dataset.media, media_caption: m ? (m.caption || "").slice(0, 200) : "", media_thumb: m ? thumbOf(m) || "" : "" });
+  if (draft.media_id === "next" && draft.send_mode === "bulk") draft.send_mode = "instant";
+  renderGrid(); renderMode();
+};
+const MODE_HINT = { instant: "댓글이 달리면 바로 보냅니다. 같은 댓글에는 한 번만 보냅니다. 발송 한도에 걸리면 1분 뒤에 다시 보냅니다.",
+  scheduled: "저장한 때부터 정한 시간까지 달린 댓글에, 정한 시간에 보냅니다. 같은 사람에게는 한 번만 보냅니다. 1분에 12건씩 보냅니다(댓글 120개면 약 10분). 인스타그램 규칙 때문에 7일 안의 시간만 고를 수 있습니다.",
+  bulk: "저장한 때를 기준으로 최근 7일 안에 달린 댓글에 1분 안에 보내기 시작합니다. 같은 사람에게는 한 번만 보냅니다. 이미 DM을 받은 댓글은 건너뜁니다. 1분에 12건씩 보냅니다(댓글 120개면 약 10분)." };
+function renderMode() {
+  document.querySelectorAll("#mMode button").forEach(b => {
+    b.classList.toggle("on", b.dataset.mode === draft.send_mode);
+    b.disabled = b.dataset.mode === "bulk" && draft.media_id === "next";
+  });
+  $("mSendAt").style.display = draft.send_mode === "scheduled" ? "" : "none";
+  // picker only offers now .. 7 days (minus 1 hour of margin for the private-reply window)
+  $("mSendAt").min = toLocal(new Date(Date.now() + 6e4).toISOString());
+  $("mSendAt").max = toLocal(new Date(Date.now() + 7 * 864e5 - 36e5).toISOString());
+  $("mModeHint").textContent = MODE_HINT[draft.send_mode];
+}
+$("mMode").onclick = e => { const b = e.target.closest("button[data-mode]"); if (b && !b.disabled) { draft.send_mode = b.dataset.mode; renderMode(); } };
+function renderKw() {
+  $("mKw").querySelectorAll(".chip").forEach(c => c.remove());
+  draft.keywords.forEach((k, i) => {
+    const c = document.createElement("span"); c.className = "chip"; c.innerHTML = `${esc(k)}<button data-kw="${i}" aria-label="삭제">×</button>`;
+    $("mKw").insertBefore(c, $("mKwInput"));
+  });
+}
+$("mKw").onclick = e => { const b = e.target.closest("button[data-kw]"); if (b) { draft.keywords.splice(+b.dataset.kw, 1); renderKw(); } else $("mKwInput").focus(); };
+$("mKwInput").onkeydown = e => {
+  const v = e.target.value.trim();
+  if ((e.key === "Enter" || e.key === ",") && !e.isComposing) { e.preventDefault(); if (v && !draft.keywords.includes(v)) draft.keywords.push(v); e.target.value = ""; renderKw(); }
+  else if (e.key === "Backspace" && !e.target.value && draft.keywords.length) { draft.keywords.pop(); renderKw(); }
+};
+function renderFollow() {
+  $("mFollow").classList.toggle("on", draft.require_follow);
+  $("mAskField").style.display = $("mFollowField").style.display = draft.require_follow ? "" : "none";
+  $("mLinkLabel").textContent = draft.require_follow ? "팔로우한 사람에게 보낼 링크 DM" : "댓글 단 사람에게 바로 보낼 링크 DM";
+}
+$("mFollow").onclick = () => { draft.require_follow = !draft.require_follow; renderFollow(); };
+function renderReply() {
+  $("mReply").classList.toggle("on", draft.comment_reply);
+  $("mReplyField").style.display = draft.comment_reply ? "" : "none";
+}
+$("mReply").onclick = () => { draft.comment_reply = !draft.comment_reply; renderReply(); };
+function renderPreview() {
+  $("pvText").textContent = $("mLink").value;
+  $("pvBtns").innerHTML = draft.link_buttons.map(b => `<div class="pvb ${b.title ? "" : "empty"}">${esc(b.title || "버튼명을 입력해주세요")}</div>`).join("");
+}
+function renderBtns() {
+  document.querySelectorAll("#mBtnCount button").forEach(b => b.classList.toggle("on", +b.dataset.n === draft.link_buttons.length));
+  $("mBtns").innerHTML = draft.link_buttons.map((b, i) => `
+    <div class="btnrow"><input data-bi="${i}" data-bk="title" maxlength="20" placeholder="버튼 ${i + 1} 이름" value="${esc(b.title)}">
+    <input data-bi="${i}" data-bk="url" type="url" placeholder="https://..." value="${esc(b.url)}"></div>`).join("");
+  renderPreview();
+}
+$("mBtnCount").onclick = e => {
+  const b = e.target.closest("button[data-n]"); if (!b) return;
+  const n = +b.dataset.n, list = draft.link_buttons;
+  while (list.length < n) list.push({ title: "", url: "" });
+  list.length = n; renderBtns();
+};
+$("mBtns").oninput = e => { const i = e.target.dataset.bi; if (i !== undefined) { draft.link_buttons[i][e.target.dataset.bk] = e.target.value; renderPreview(); } };
+$("mLink").oninput = renderPreview;
+const close = () => $("backdrop").classList.remove("show");
+$("mCancel").onclick = close;
+$("backdrop").onclick = e => { if (e.target === $("backdrop")) close(); };
+$("mDelete").onclick = () => { if (confirm("이 자동화를 삭제할까요?")) { close(); save(rules().filter(r => r.id !== editing.id), "삭제했어요"); } };
+$("mSave").onclick = () => {
+  const pending = $("mKwInput").value.trim(); if (pending && !draft.keywords.includes(pending)) draft.keywords.push(pending);
+  Object.assign(draft, { ask_text: $("mAsk").value.trim(), link_text: $("mLink").value.trim(), follow_text: $("mFollowText").value.trim(),
+                         link_buttons: draft.link_buttons.map(b => ({ title: b.title.trim(), url: b.url.trim() })),
+                         reply_texts: $("mReplyTexts").value.split("\n").map(t => t.trim()).filter(Boolean).slice(0, 30) });
+  if (!draft.media_id) return toast("게시물을 선택해 주세요");
+  draft.send_at = draft.send_mode === "scheduled" && $("mSendAt").value ? new Date($("mSendAt").value).toISOString() : "";
+  if (draft.send_mode === "scheduled") {
+    const t = Date.parse(draft.send_at);
+    if (!(t > Date.now())) return toast("예약 시간은 지금보다 뒤로 정해 주세요");
+    if (t > Date.now() + 7 * 864e5 - 36e5) return toast("예약 시간은 7일 안으로 정해 주세요");
+  }
+  const o = editing || {};
+  if (o.send_mode !== draft.send_mode || o.send_at !== draft.send_at || o.media_id !== draft.media_id) draft.armed_at = ""; // server stamps now
+  if (draft.comment_reply && !draft.reply_texts.length) return toast("답글 문구를 한 줄 이상 입력해 주세요");
+  if (!draft.link_text) return toast("링크 DM 메시지를 입력해 주세요");
+  if (draft.link_buttons.some(b => !b.title)) return toast("버튼 이름을 입력해 주세요");
+  if (draft.link_buttons.some(b => !/^https?:\/\//.test(b.url))) return toast("버튼 링크는 https:// 로 시작해야 해요");
+  close();
+  save(editing ? rules().map(r => r.id === editing.id ? draft : r) : [...rules(), draft], editing ? "수정했어요" : "자동화를 추가했어요");
+};
+load();
+</script>
+</body>
+</html>
