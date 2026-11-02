@@ -15,14 +15,35 @@
 
 1. [developers.facebook.com](https://developers.facebook.com/apps) → **My Apps** → **Create App**을 누릅니다.
 2. 앱 이름(아무거나, 나중에 변경 가능)과 연락 이메일을 넣고 **Next**를 누릅니다.
+
+   ![01-app-details](images/01-app-details.jpg)
+
 3. 사용 사례 화면 왼쪽 필터에서 **Business messaging**을 누르고, **Manage messaging & content on Instagram**에 체크한 뒤 **Next**를 누릅니다.
+
+   ![02-use-case](images/02-use-case.jpg)
+
 4. 비즈니스 포트폴리오 화면에서 **"I don't want to connect a business portfolio yet."** 을 고르고 **Next**를 누릅니다. 포트폴리오와 비즈니스 인증은 필요 없습니다.
+
+   ![03-business](images/03-business.jpg)
+
 5. "No requirements identified"가 보이면 **Next** → **Create app**을 누릅니다. 페이스북 비밀번호를 다시 물으면 입력합니다.
+
+   ![04-requirements](images/04-requirements.jpg)
+
 6. 대시보드에서 **Customize the Manage messaging & content on Instagram use case** → **API setup with Instagram login**으로 갑니다.
 7. 1번 항목의 **Add all required permissions**를 누릅니다. "All required permissions added."가 나오면 됩니다.
    - 추가되는 권한: `instagram_business_basic`, `instagram_business_manage_comments`, `instagram_business_manage_messages`
+
+   ![05-permissions](images/05-permissions.jpg)
+
 8. 왼쪽 메뉴 **App roles → Roles → Add** → **Instagram Tester**를 고르고 내 인스타그램 사용자 이름을 추가합니다.
+
+   ![06-add-tester](images/06-add-tester.jpg)
+
    - "Form can't be saved" 오류가 나도 초대는 만들어집니다. 목록에 Pending이 보이면 됩니다.
+
+   ![07-tester-pending](images/07-tester-pending.jpg)
+
 9. 인스타그램 웹 [instagram.com/accounts/manage_access/](https://www.instagram.com/accounts/manage_access/) → **테스터 초대** 탭에서 초대를 수락합니다.
 
 ## 2단계. 개인정보처리방침과 앱 기본 설정 `👤 사람`
@@ -39,6 +60,10 @@ Publish 버튼은 이 항목이 모두 채워져야 눌립니다.
 | User data deletion | **Data deletion instructions URL**을 고르고 같은 페이지 주소 |
 | Category | Business and pages |
 
+![10-basic-settings](images/10-basic-settings.jpg)
+
+![11-basic-category](images/11-basic-category.jpg)
+
 앱 아이콘은 비워 두어도 됩니다.
 
 ## 3단계. 토큰과 앱 시크릿 받기 `👤 사람`
@@ -46,6 +71,9 @@ Publish 버튼은 이 항목이 모두 채워져야 눌립니다.
 1. 저장소 폴더에서 `.env.example`을 `.env`로 복사합니다. (`🤖 에이전트`가 해도 됩니다: `cp .env.example .env`)
 2. **API setup with Instagram login** 화면 맨 위의 **Instagram app secret** 옆 **Show**를 누르고, 값을 `.env`의 `IG_APP_SECRET=` 뒤에 붙여 넣습니다.
 3. 2번 항목 **Generate access tokens**를 펼칩니다. 내 계정이 목록에 없으면 **Add account**를 누릅니다.
+
+   ![08-token-list](images/08-token-list.jpg)
+
 4. 내 계정 줄의 **Generate token**을 누릅니다. 팝업에서 **DM을 보낼 인스타그램 계정**으로 로그인하고 권한을 모두 허용합니다.
    - 팝업에서 로그인한 계정이 곧 자동 DM을 보내는 계정입니다. 다른 계정이 로그인되어 있지 않은지 확인하세요.
 5. 표시된 토큰을 `.env`의 `IG_ACCESS_TOKEN=` 뒤에 붙여 넣고 저장합니다. 앞뒤 공백이 없어야 합니다.
@@ -108,7 +136,13 @@ curl -s "https://graph.instagram.com/v23.0/me?fields=user_id,username,account_ty
 1. `👤 사람` **API setup with Instagram login** → 3번 항목 **Configure webhooks**에 아래 값을 넣고 **Verify and save**를 누릅니다.
    - Callback URL: `https://<Worker 주소>/webhook`
    - Verify token: `.env`의 `AUTODM_VERIFY_TOKEN` 값 (에이전트는 값을 채팅에 쓰지 말고, 사용자에게 `.env`에서 복사하도록 안내합니다)
+
+   ![12-webhook-input](images/12-webhook-input.jpg)
+
 2. `👤 사람` 아래 Webhook fields 표에서 `comments`, `messages`, `messaging_postbacks`가 **Subscribed**인지 확인합니다. 꺼져 있으면 켭니다.
+
+   ![13-webhook-fields](images/13-webhook-fields.jpg)
+
 3. `🤖 에이전트` 내 계정의 webhook 구독을 켭니다. (대시보드 2번 항목의 **Webhook Subscription** 토글과 같은 동작입니다.)
    ```bash
    set -a; . ./.env; set +a
@@ -116,13 +150,20 @@ curl -s "https://graph.instagram.com/v23.0/me?fields=user_id,username,account_ty
    # {"success":true}
    ```
 
+   ![14-subscription-on](images/14-subscription-on.jpg)
+
 ## 7단계. Publish `👤 사람`
 
 **이 단계를 빼면 실제 댓글이 들어오지 않습니다.** 개발 모드에서는 webhook 연결이 성공해도 read·reaction 이벤트만 오고, 댓글과 DM 텍스트는 오지 않습니다.
 
 1. 왼쪽 메뉴 **Publish**를 누릅니다.
+
+   ![15-publish](images/15-publish.jpg)
+
 2. "All required app settings are complete"를 확인합니다. 아니면 2단계로 돌아갑니다.
 3. 오른쪽 아래 **Publish** 버튼을 누릅니다. "Your app was successfully published"가 나오면 됩니다.
+
+   ![16-published](images/16-published.jpg)
 
 Advanced Access 신청이나 앱 심사는 하지 않습니다. 화면의 "Complete app review" 항목은 무시합니다.
 
