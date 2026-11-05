@@ -15,5 +15,5 @@ This repo deploys an Instagram comment auto-DM bot to Cloudflare Workers. To ins
 
 - `src/logic.js`: pure flow logic (no I/O except the injected `acct.call` and `store`). Covered by `npm test`.
 - `src/index.js`: Worker entry, D1 store, webhook signature check, admin auth.
-- `src/admin.html`: admin GUI, vanilla JS, talks to `/api/state`, `/api/media`, `/api/rules`.
+- `src/admin.html`: admin GUI, vanilla JS, talks to `/api/state`, `/api/media`, `/api/post`, `/api/rules`.
 - Run `npm test` after changing `src/logic.js`.

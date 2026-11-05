@@ -133,6 +133,14 @@ async function admin(request, env, url) {
         fields: "id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,comments_count" });
       return json(res?.data || [], res ? 200 : 502);
     }
+    // CDN image URLs expire after a few days, so look them up fresh and redirect
+    const id = url.searchParams.get("id") || "";
+    if (url.pathname === "/api/post" && acct && /^\d+$/.test(id)) {
+      const m = await acct.call("GET", id, undefined, { fields: "media_type,media_url,thumbnail_url,permalink" });
+      const to = url.searchParams.get("to") === "img" ? (m?.media_type === "VIDEO" ? m.thumbnail_url : m?.media_url) : m?.permalink;
+      if (to) return new Response(null, { status: 302, headers: { Location: to, "Cache-Control": "private, max-age=3600" } });
+      return json({ error: "not found" }, 404);
+    }
     return json({ error: "not found" }, 404);
   }
   // cross-site guard: same origin only, JSON only (forces a CORS preflight)
