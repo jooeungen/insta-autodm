@@ -265,7 +265,7 @@ function render() {
 
   if (!list.length) { $("list").innerHTML = `<div class="empty">아직 자동화가 없어요.<br>오른쪽 위 버튼으로 첫 자동화를 만들어 보세요.</div>`; return; }
   const groups = {};
-  list.forEach(r => (groups[r.media_id] ||= []).push(r));
+  [...list].reverse().forEach(r => (groups[r.media_id] ||= []).push(r)); // new rules are appended, show newest first
   $("list").innerHTML = Object.entries(groups).sort(([a], [b]) => (a === "") - (b === "")).map(([mid, rs]) => `
     <div class="post">
       ${real(mid) ? `<a class="thumb" href="${postUrl(mid, "link")}" target="_blank" rel="noopener" aria-label="게시물 열기" style="background-image:url('${postUrl(mid, "img")}')"></a>`
