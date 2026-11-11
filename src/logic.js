@@ -92,11 +92,33 @@ export async function handle(entry, acct, store) {
     const pb = m.postback || {};
     const [kind, ruleId = ""] = (pb.payload || "").split(":");
     // mid dedupe: the same event can arrive via several subscribed apps and Meta retries
-    if (kind === CHECK && await store.once("p:" + (pb.mid || m.timestamp))) {
+    if (!m.postback || !await store.once("p:" + (pb.mid || m.timestamp))) continue;
+    const limited = e => { if (!(e instanceof RateLimited)) throw e; console.log(`[${acct.username}] rate limited, follow check dropped`); };
+    if (kind === CHECK) {
       // rate limited: the person can tap the button again
-      await onCheck(m.sender.id, ruleId, acct, store).catch(e => { if (!(e instanceof RateLimited)) throw e; console.log(`[${acct.username}] rate limited, follow check dropped`); });
+      await onCheck(m.sender.id, ruleId, acct, store).catch(limited);
+    } else if (pb.title?.includes("팔로우")) {
+      // follow button sent earlier by another auto-DM tool (e.g. inpock): find the rule by the person's comment
+      const rule = await ruleByComment(m.sender.id, acct, store);
+      console.log(`[${acct.username}] foreign follow button from ${m.sender.id} -> rule ${rule?.id ?? "none"}`);
+      if (rule) await onCheck(m.sender.id, rule.id, acct, store).catch(limited);
+    } else console.log(`[${acct.username}] ignored postback "${pb.title}" from ${m.sender?.id}`);
+  }
+}
+
+// ponytail: reads at most 20 comment pages in total, a person on an older/bigger post may not be found
+async function ruleByComment(igsid, acct, store) {
+  const rules = (await store.rules(acct.id)).filter(r => r.enabled && r.media_id && r.media_id !== "next");
+  let pages = 20;
+  for (const r of rules) {
+    for (let after; pages-- > 0;) {
+      const page = await acct.call("GET", `${r.media_id}/comments`, undefined, { fields: "from", limit: 50, ...(after && { after }) }).catch(() => null);
+      if (page?.data?.some(c => c.from?.id === igsid)) return r;
+      if (!page?.paging?.next) break;
+      after = page.paging.cursors?.after;
     }
   }
+  return null;
 }
 
 export class RateLimited extends Error {} // thrown by acct.call when Meta says "too many calls"

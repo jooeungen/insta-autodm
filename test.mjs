@@ -100,6 +100,20 @@ await handle(comment("n2", "u1", "hi", "P2"), ME2, store);
 assert.equal(calls.filter(c => c.method === "POST").length, 1, "comment on the bound post gets a DM");
 assert.equal(cleanRule({}).send_mode, "instant");
 
+// follow button sent by another auto-DM tool: find the rule from the person's comment
+api["M7/comments"] = { data: [cm("f1", T, "u3")] };
+rules.ME2 = [cleanRule({ id: "old", media_id: "M6" }), cleanRule({ id: "inp", media_id: "M7", follow_text: "FOLLOW7" })];
+const foreign = (who, mid) => ({ messaging: [{ sender: { id: who }, postback: { title: "팔로우 확인 🙌🏻", payload: "OTHER_TOOL", mid } }] });
+const posts = () => calls.filter(c => c.method === "POST");
+calls.length = 0;
+await handle(foreign("u3", "fm1"), ME2, store);
+await handle(foreign("u3", "fm1"), ME2, store);
+assert.deepEqual(posts().map(c => c.body), [{ recipient: { id: "u3" }, message: button("FOLLOW7", "CHECK:inp") }], "foreign button: rule found by comment, once");
+calls.length = 0;
+await handle(foreign("u4", "fm2"), ME2, store);
+await handle({ messaging: [{ sender: { id: "u3" }, postback: { title: "다른 버튼", payload: "X", mid: "fm3" } }] }, ME2, store);
+assert.equal(posts().length, 0, "no comment found or not a follow button: nothing sent");
+
 // rate limit: stop, queue the rest, send them next minute
 let limitAfter = Infinity;
 const call3 = async (method, path, body, params) => {
