@@ -114,8 +114,21 @@
   .menu button:hover { background: var(--side); }
   .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--dark); color: #fff; padding: 10px 16px; border-radius: 10px; opacity: 0; transition: opacity .2s; pointer-events: none; }
   .toast.show { opacity: 1; }
+  .nav { border: 1px solid var(--line); background: #fff; border-radius: 8px; width: 28px; height: 28px; }
+  .nav:disabled { opacity: .4; cursor: default; }
+  #calTitle { font-weight: 700; min-width: 92px; text-align: center; }
+  .cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; }
+  .cal .dow { text-align: center; font-size: 12px; color: var(--sub); padding: 4px 0 8px; }
+  .cal .sun { color: #e5484d; } .cal .sat { color: #3b82f6; }
+  .cal .day { position: relative; aspect-ratio: 3 / 4; display: grid; place-items: center; border-radius: 6px; overflow: hidden;
+              background: var(--side) center/cover; color: var(--sub); font-size: 13px; text-decoration: none; }
+  .cal .blank { background: none; }
+  .cal a.day { color: #fff; font-weight: 800; font-size: 15px; text-shadow: 0 1px 4px rgba(0,0,0,.7); }
+  .cal .dm { position: absolute; left: 4px; top: 4px; font-size: 10px; background: var(--ok); color: #fff; padding: 1px 5px; border-radius: 6px; text-shadow: none; }
+  .cal .more { position: absolute; right: 4px; bottom: 4px; font-size: 11px; background: rgba(0,0,0,.55); padding: 1px 5px; border-radius: 6px; text-shadow: none; }
+  .cal .msg { grid-column: 1 / -1; color: var(--sub); font-size: 13px; padding: 24px 0; text-align: center; }
   @media (max-width: 720px) {
-    .app { grid-template-columns: 1fr; }
+    .app { grid-template-columns: minmax(0, 1fr); }
     aside { border-right: 0; border-bottom: 1px solid var(--line); }
     main { padding: 16px; }
     .grid { grid-template-columns: repeat(4, 1fr); }
@@ -134,6 +147,11 @@
     <div class="col">
       <div class="card stats" id="stats"></div>
       <div class="limit">발송 한도: 계정당 <b>1분 12건, 1시간 720건</b>입니다. 인스타그램 한도(1시간 750건)보다 조금 적게 잡았습니다. 한도에 걸린 DM은 1분 뒤에 다시 보냅니다.</div>
+      <div class="section-head">
+        <h2>업로드 캘린더</h2>
+        <button class="nav" id="calPrev" aria-label="이전 달" style="margin-left:auto">‹</button><span id="calTitle"></span><button class="nav" id="calNext" aria-label="다음 달">›</button>
+      </div>
+      <div class="cal" id="cal"></div>
       <div class="section-head">
         <h2>자동화</h2><span class="count" id="ruleCount"></span><span class="pill" id="statusPill"></span>
         <button class="primary" id="addBtn">+ 자동화 추가</button>
@@ -252,6 +270,7 @@ function render() {
   if (!a) { $("hName").textContent = "연결된 계정이 없어요"; return; }
   $("hName").textContent = "@" + a.username;
   $("hAvatar").style.backgroundImage = `url('${a.picture}')`;
+  renderCal();
 
   const list = rules(), tot = list.reduce((s, r) => { const x = statOf(r.id); s.sent += x.sent; s.checks += x.checks; s.links += x.links; return s; }, { sent: 0, checks: 0, links: 0 });
   $("stats").innerHTML = `
@@ -329,6 +348,34 @@ async function openModal(rule, mediaId) {
   }
   renderGrid();
 }
+let calMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+const calCache = {}; // "acct:YYYY-M" -> posts of that month, newest first
+const calKey = () => `${acct}:${calMonth.getFullYear()}-${calMonth.getMonth()}`;
+async function renderCal() {
+  const key = calKey(), y = calMonth.getFullYear(), mo = calMonth.getMonth(), next = new Date(y, mo + 1, 1);
+  $("calTitle").textContent = `${y}년 ${mo + 1}월`;
+  $("calNext").disabled = next > new Date();
+  if (!calCache[key]) {
+    $("cal").innerHTML = `<div class="msg">게시물을 불러오는 중…</div>`;
+    const r = await fetch(`/api/media?account=${encodeURIComponent(acct)}&since=${calMonth.toISOString()}&until=${next.toISOString()}`);
+    if (r.ok) calCache[key] = await r.json();
+    if (key !== calKey()) return; // moved to another month or account meanwhile
+    if (!r.ok) { $("cal").innerHTML = `<div class="msg">게시물을 불러오지 못했어요</div>`; return; }
+  }
+  const byDay = {}, withDm = new Set(rules().filter(r => r.enabled).map(r => r.media_id));
+  calCache[key].forEach(m => (byDay[new Date(m.timestamp).getDate()] ||= []).push(m));
+  const cells = [..."일월화수목금토"].map((d, i) => `<div class="dow ${i === 0 ? "sun" : i === 6 ? "sat" : ""}">${d}</div>`);
+  for (let i = 0; i < new Date(y, mo, 1).getDay(); i++) cells.push(`<div class="day blank"></div>`);
+  for (let d = 1; d <= new Date(y, mo + 1, 0).getDate(); d++) {
+    const ps = byDay[d], m = ps?.[0];
+    cells.push(!m ? `<div class="day">${d}</div>` :
+      `<a class="day" href="${esc(m.permalink)}" target="_blank" rel="noopener" title="${esc((m.caption || "").slice(0, 80))}" style="background-image:linear-gradient(rgba(0,0,0,.28),rgba(0,0,0,.28)),url('${esc(thumbOf(m))}')">${d}` +
+      `${ps.some(p => withDm.has(p.id)) ? `<span class="dm">DM</span>` : ""}${ps.length > 1 ? `<span class="more">+${ps.length - 1}</span>` : ""}</a>`);
+  }
+  $("cal").innerHTML = cells.join("");
+}
+$("calPrev").onclick = () => { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() - 1, 1); renderCal(); };
+$("calNext").onclick = () => { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 1); renderCal(); };
 const thumbOf = m => m.media_type === "VIDEO" ? m.thumbnail_url : m.media_url;
 function renderGrid() {
   const list = media[acct] || [];

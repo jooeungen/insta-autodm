@@ -128,6 +128,22 @@ async function admin(request, env, url) {
       return json({ accounts: accts, ...await store.snapshot() });
     }
     const acct = (await accounts(env))[url.searchParams.get("account")];
+    const since = Date.parse(url.searchParams.get("since")), until = Date.parse(url.searchParams.get("until"));
+    if (url.pathname === "/api/media" && acct && since < until) {
+      // calendar: posts come newest first, page back until the month starts
+      // ponytail: stops after 500 posts, months further back show empty
+      const out = [];
+      for (let n = 0, after; n < 10; n++) {
+        const res = await acct.call("GET", "me/media", undefined, { limit: 50, ...(after && { after }),
+          fields: "id,caption,media_type,media_url,thumbnail_url,permalink,timestamp" });
+        if (!res) return json(out, n ? 200 : 502);
+        out.push(...(res.data || []).filter(m => Date.parse(m.timestamp) >= since && Date.parse(m.timestamp) < until));
+        const last = res.data?.at(-1);
+        if (!last || Date.parse(last.timestamp) < since || !res.paging?.next) break;
+        after = res.paging.cursors?.after;
+      }
+      return json(out);
+    }
     if (url.pathname === "/api/media" && acct) {
       const res = await acct.call("GET", "me/media", undefined, { limit: 30,
         fields: "id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,comments_count" });
