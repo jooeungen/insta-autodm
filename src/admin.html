@@ -119,6 +119,7 @@
   #viewCal .section-head { margin-top: 0; }
   .nav { border: 1px solid var(--line); background: #fff; border-radius: 8px; width: 28px; height: 28px; }
   .nav:disabled { opacity: .4; cursor: default; }
+  .calstatus { color: var(--sub); font-size: 12px; }
   #calTitle { font-weight: 700; min-width: 92px; text-align: center; }
   .cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; }
   .cal .dow { text-align: center; font-size: 12px; color: var(--sub); padding: 4px 0 8px; }
@@ -160,7 +161,7 @@
       </div>
       <div id="viewCal" hidden>
       <div class="section-head">
-        <h2>업로드 캘린더</h2>
+        <h2>업로드 캘린더</h2><span id="calStatus" class="calstatus"></span>
         <button class="nav" id="calPrev" aria-label="이전 달" style="margin-left:auto">‹</button><span id="calTitle"></span><button class="nav" id="calNext" aria-label="다음 달">›</button>
       </div>
       <div class="cal" id="cal"></div>
@@ -362,21 +363,24 @@ async function openModal(rule, mediaId) {
   renderGrid();
 }
 let calMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-const calCache = {}; // "acct:YYYY-M" -> posts of that month, newest first
-const calKey = () => `${acct}:${calMonth.getFullYear()}-${calMonth.getMonth()}`;
-async function renderCal() {
-  const key = calKey(), y = calMonth.getFullYear(), mo = calMonth.getMonth(), next = new Date(y, mo + 1, 1);
+const calData = {}, calReq = {}; // "acct:YYYY-M" -> posts of that month (newest first) / pending request
+const calKey = (a = acct, d = calMonth) => `${a}:${d.getFullYear()}-${d.getMonth()}`;
+function calLoad(a, d) {
+  const key = calKey(a, d);
+  if (calData[key] || calReq[key]) return calReq[key];
+  const until = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+  return calReq[key] = fetch(`/api/media?account=${encodeURIComponent(a)}&since=${d.toISOString()}&until=${until.toISOString()}`)
+    .then(r => r.ok ? r.json() : null).catch(() => null)
+    .then(x => { delete calReq[key]; if (x) calData[key] = x; return x; });
+}
+// draws the month right away; thumbnails fill in when the posts arrive
+function drawCal(posts, status) {
+  const y = calMonth.getFullYear(), mo = calMonth.getMonth();
   $("calTitle").textContent = `${y}년 ${mo + 1}월`;
-  $("calNext").disabled = next > new Date();
-  if (!calCache[key]) {
-    $("cal").innerHTML = `<div class="msg">게시물을 불러오는 중…</div>`;
-    const r = await fetch(`/api/media?account=${encodeURIComponent(acct)}&since=${calMonth.toISOString()}&until=${next.toISOString()}`);
-    if (r.ok) calCache[key] = await r.json();
-    if (key !== calKey()) return; // moved to another month or account meanwhile
-    if (!r.ok) { $("cal").innerHTML = `<div class="msg">게시물을 불러오지 못했어요</div>`; return; }
-  }
+  $("calNext").disabled = new Date(y, mo + 1, 1) > new Date();
+  $("calStatus").textContent = status;
   const byDay = {}, withDm = new Set(rules().filter(r => r.enabled).map(r => r.media_id));
-  calCache[key].forEach(m => (byDay[new Date(m.timestamp).getDate()] ||= []).push(m));
+  (posts || []).forEach(m => (byDay[new Date(m.timestamp).getDate()] ||= []).push(m));
   const cells = [..."일월화수목금토"].map((d, i) => `<div class="dow ${i === 0 ? "sun" : i === 6 ? "sat" : ""}">${d}</div>`);
   for (let i = 0; i < new Date(y, mo, 1).getDay(); i++) cells.push(`<div class="day blank"></div>`);
   for (let d = 1; d <= new Date(y, mo + 1, 0).getDate(); d++) {
@@ -386,6 +390,16 @@ async function renderCal() {
       `${ps.some(p => withDm.has(p.id)) ? `<span class="dm">DM</span>` : ""}${ps.length > 1 ? `<span class="more">+${ps.length - 1}</span>` : ""}</a>`);
   }
   $("cal").innerHTML = cells.join("");
+}
+async function renderCal() {
+  const key = calKey(), month = calMonth;
+  drawCal(calData[key], calData[key] ? "" : "불러오는 중…");
+  if (!calData[key]) {
+    const x = await calLoad(acct, month);
+    if (key !== calKey()) return; // moved to another month or account meanwhile
+    drawCal(x, x ? "" : "불러오지 못했어요");
+  }
+  calLoad(acct, new Date(month.getFullYear(), month.getMonth() - 1, 1)); // prefetch the previous month
 }
 $("calPrev").onclick = () => { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() - 1, 1); renderCal(); };
 $("calNext").onclick = () => { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 1); renderCal(); };
